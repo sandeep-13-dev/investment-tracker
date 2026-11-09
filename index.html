@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<title>My Investment Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js"></script>
+<script>
+  if (!window.supabase?.createClient) {
+    const fallback = document.createElement('script');
+    fallback.src = 'https://unpkg.com/@supabase/supabase-js@2.119.0';
+    document.head.appendChild(fallback);
+  }
+</script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
+  onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';document.head.appendChild(s);"></script>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#121d2e;--panel2:#18263a;--line:#28384f;--text:#edf3fb;--muted:#9eafc4;--accent:#73d6b2;--red:#ff8f8f;--blue:#8bbcff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#101b2c 0,#0b1220 360px);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:env(safe-area-inset-top) 14px calc(26px + env(safe-area-inset-bottom));}
+main{max-width:760px;margin:0 auto}.top{padding:22px 4px 14px}.eyebrow{color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.13em;text-transform:uppercase}.top h1{font-size:27px;margin:6px 0}.sub{color:var(--muted);line-height:1.45}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 8px 28px #0002}.card h2{font-size:17px;margin:0 0 12px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric{background:var(--panel2);padding:13px;border-radius:13px;min-width:0}.metric small{display:block;color:var(--muted);font-size:12px}.metric strong{display:block;font-size:20px;margin-top:5px;overflow-wrap:anywhere}.muted{color:var(--muted)}.tiny{font-size:12px;color:var(--muted);line-height:1.45}
+label{display:block;color:var(--muted);font-size:13px;margin:10px 0 6px}input,select{width:100%;background:#0d1726;color:var(--text);border:1px solid var(--line);border-radius:11px;padding:12px;font:inherit;min-height:45px}button,.filebtn{border:0;border-radius:12px;padding:12px 15px;font:600 14px system-ui;cursor:pointer;background:var(--accent);color:#082018;min-height:44px}button.secondary{background:#23344b;color:var(--text);border:1px solid #354a65}button.danger{background:#3a2029;color:#ffc1c1;border:1px solid #673542}button:disabled{opacity:.45;cursor:not-allowed}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}.actions button{flex:1}.hidden{display:none!important}.status{padding:10px 12px;border-radius:11px;background:#17283b;color:#c6d7eb;margin-top:10px;white-space:pre-wrap;font-size:13px}.status.error{background:#3a2029;color:#ffc1c1}.status.ok{background:#17352f;color:#b9f4dd}
+.row{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}.row:last-child{border-bottom:0}.row strong{display:block;font-size:14px}.row small{color:var(--muted)}.right{text-align:right;white-space:nowrap}.positive{color:var(--accent)}.negative{color:var(--red)}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px;min-width:440px}th,td{text-align:right;padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}th:first-child,td:first-child{text-align:left}th{color:var(--muted);font-weight:600}.history-item{padding:12px 0;border-bottom:1px solid var(--line)}.history-item:last-child{border:0}.bar{height:8px;background:#26384d;border-radius:99px;overflow:hidden;margin-top:7px}.bar span{display:block;height:100%;background:var(--accent);border-radius:99px}.pill{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:4px 8px;font-size:11px;color:var(--muted)}
+@media(min-width:560px){body{padding-left:22px;padding-right:22px}.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<main>
+<header class="top"><div class="eyebrow">Personal finance · private account</div><h1>My Investment Tracker</h1><div class="sub">Upload your Groww holdings statement to save a dated snapshot and compare how your portfolio changes over time.</div></header>
+
+<section class="card" id="authCard">
+<h2>Connect your account</h2>
+<p class="tiny">Create an account once, then sign in on this phone to access your saved snapshots. Your investment records are private to your signed-in account.</p>
+<label for="email">Email</label><input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+<label for="password">Password</label><input id="password" type="password" autocomplete="current-password" placeholder="At least 8 characters">
+<div class="actions"><button id="signIn">Sign in</button><button class="secondary" id="signUp">Create account</button></div>
+<div id="authMsg" class="status hidden"></div>
+</section>
+
+<div id="app" class="hidden">
+<section class="card">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2 style="margin:0">Portfolio overview</h2><span class="pill" id="userTag"></span></div>
+<div class="grid" style="margin-top:13px">
+<div class="metric"><small>Current value</small><strong id="currentTotal">—</strong></div>
+<div class="metric"><small>Invested value</small><strong id="investedTotal">—</strong></div>
+<div class="metric"><small>Unrealised gain</small><strong id="gainTotal">—</strong></div>
+<div class="metric"><small>Absolute return</small><strong id="returnTotal">—</strong></div>
+<div class="metric"><small>XIRR</small><strong id="xirrTotal">Needs transactions</strong></div>
+</div>
+<div class="tiny" id="latestDate" style="margin-top:10px">No saved snapshots yet.</div>
+</section>
+
+<section class="card">
+<h2>Save today's snapshot</h2>
+<p class="tiny">Choose a Groww Holdings Statement in .xlsx, .xls or .csv format. The app reads the first sheet and groups duplicate folio rows by scheme.</p>
+<label for="statement">Groww statement file</label><input id="statement" type="file" accept=".xlsx,.xls,.csv">
+<div class="actions"><button id="analyzeSave" disabled>Analyze & save snapshot</button></div>
+<div id="uploadMsg" class="status hidden"></div>
+<div id="preview" class="hidden"></div>
+</section>
+
+<section class="card">
+<h2>Portfolio growth</h2>
+<canvas id="growthChart" height="190" style="width:100%;display:block"></canvas>
+<p class="tiny">Portfolio value at each saved snapshot. The chart becomes more useful as you add monthly statements.</p>
+<div id="monthlySummary" class="tiny"></div>
+</section>
+<section class="card">
+<h2>History & comparison</h2>
+<div id="history"><p class="tiny">Your saved snapshots will appear here.</p></div>
+<div id="compare" class="hidden"></div>
+</section>
+<section class="card">
+<h2>Fund performance history</h2>
+<div id="fundHistory"><p class="tiny">Save another snapshot to compare scheme performance over time.</p></div>
+</section>
+
+<section class="card">
+<h2>Saved schemes · latest snapshot</h2>
+<div id="schemes"><p class="tiny">No scheme data yet.</p></div>
+</section>
+<div class="actions"><button class="secondary" id="refresh">Refresh history</button><button class="danger" id="signOut">Sign out</button></div>
+<p class="tiny" style="text-align:center;margin:18px 8px">This tracker stores statement values you upload. It does not connect to Groww or place transactions. Keep your original statements as records.</p>
+</div>
+</main>
+<script>
+(() => {
+  const SUPABASE_URL = "https://yqgvdkkudynhwimnalch.supabase.co";
+  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable__cr8rumLYPVB2zcZ6IaC7A_5XUtbKjY";
+  const $ = id => document.getElementById(id);
+  const money = n => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format(Number(n)||0);
+  const num = v => { if(v===null||v===undefined||v==='') return 0; if(typeof v==='number') return v; const s=String(v).replace(/[₹,\s]/g,'').replace(/%/g,''); const n=Number(s); return Number.isFinite(n)?n:0; };
+  const clean = s => String(s??'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const show = (el,msg,type='') => {el.textContent=msg;el.className='status'+(type?' '+type:'');el.classList.remove('hidden');};
+  const hide = el => el.classList.add('hidden');
+  let client, currentUser, selectedFile, parsedSnapshot, snapshots=[];
+  try {
+    if (!window.supabase || typeof window.supabase.createClient !== 'function') {
+      throw new Error('Supabase library did not load. Please open this file in Chrome with internet access and reload.');
+    }
+    client = window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{
+      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}
+    });
+    show($('authMsg'),'Authentication service ready. Enter your email and password.');
+  } catch(e) {
+    console.error('Supabase initialization failed:', e);
+    show($('authMsg'), e.message || 'Authentication could not initialize. Reload the page and try again.', 'error');
+  }
+
+  function parseSheet(file) {
+    return file.arrayBuffer().then(buf => {
+      const wb=XLSX.read(buf,{type:'array',cellDates:false});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:false});
+      let headerAt=-1, ix={};
+      for(let r=0;r<Math.min(rows.length,60);r++){
+        const h=rows[r].map(clean);
+        const scheme=h.findIndex(x=>x.includes('schemename')||x==='fundname');
+        const invested=h.findIndex(x=>x.includes('investedvalue')||x.includes('investedamount'));
+        const current=h.findIndex(x=>x.includes('currentvalue')||x.includes('marketvalue'));
+        if(scheme>=0 && invested>=0 && current>=0){headerAt=r;ix={scheme,invested,current,sub:h.findIndex(x=>x.includes('subcategory')),xirr:h.findIndex(x=>x==='xirr'||x.includes('annualisedreturn'))};break;}
+      }
+      if(headerAt<0) throw new Error('Could not find columns for Scheme Name, Invested Value and Current Value. Please use a Groww Holdings Statement.');
+      const grouped=new Map();
+      for(let r=headerAt+1;r<rows.length;r++){
+        const row=rows[r], name=String(row[ix.scheme]??'').trim();
+        if(!name || /total|grand total/i.test(name)) continue;
+        const invested=num(row[ix.invested]), current=num(row[ix.current]);
+        if(!invested&&!current) continue;
+        const key=name.toLowerCase();
+        if(!grouped.has(key)) grouped.set(key,{scheme:name,subcategory:ix.sub>=0?String(row[ix.sub]??'').trim():'',invested:0,current:0});
+        const x=grouped.get(key); x.invested+=invested; x.current+=current;
+      }
+      const schemes=[...grouped.values()].map(x=>({...x,gain:Number((x.current-x.invested).toFixed(2)),return_pct:x.invested?((x.current-x.invested)/x.invested*100):null}));
+      if(!schemes.length) throw new Error('No scheme rows with invested and current values were found.');
+      const invested=schemes.reduce((a,x)=>a+x.invested,0), current=schemes.reduce((a,x)=>a+x.current,0);
+      return {invested_value:+invested.toFixed(2),current_value:+current.toFixed(2),gain_loss:+(current-invested).toFixed(2),schemes,source_file_name:file.name};
+    });
+  }
+
+  function renderLatest(s) {
+    $('currentTotal').textContent=money(s.current_value);
+    $('investedTotal').textContent=money(s.invested_value);
+    $('gainTotal').textContent=money(s.gain_loss);
+    $('gainTotal').className=s.gain_loss>=0?'positive':'negative';
+    const pct=s.invested_value?(s.gain_loss/s.invested_value*100):0;
+    $('returnTotal').textContent=pct.toFixed(2)+'%';
+    $('returnTotal').className=pct>=0?'positive':'negative';
+    $('latestDate').textContent='Latest snapshot: '+new Date(s.captured_at).toLocaleString('en-IN');
+    $('xirrTotal').textContent = s.xirr===null || s.xirr===undefined ? 'Needs transactions' : Number(s.xirr).toFixed(2)+'%';
+    $('schemes').innerHTML=s.schemes.map(x=>{
+      const p=x.invested?x.gain/x.invested*100:0;
+      return `<div class="row"><div><strong>${escapeHtml(x.scheme)}</strong><small>${escapeHtml(x.subcategory||'Mutual fund')}</small></div><div class="right"><strong>${money(x.current)}</strong><small class="${p>=0?'positive':'negative'}">${p.toFixed(2)}% · ${money(x.gain)}</small></div></div>`;
+    }).join('');
+  }
+  function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+  function drawGrowthChart(items){
+    const canvas=$('growthChart'),ctx=canvas.getContext('2d');
+    const width=Math.max(280,canvas.clientWidth||320),height=190,dpr=window.devicePixelRatio||1;
+    canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,width,height);
+    if(!items.length){ctx.fillStyle='#9eafc4';ctx.font='13px system-ui';ctx.fillText('Your saved portfolio values will appear here.',8,28);return;}
+    const vals=items.map(x=>Number(x.current_value)||0),min=Math.min(...vals),max=Math.max(...vals);
+    const pad={l:12,r:12,t:20,b:24},plotW=width-pad.l-pad.r,plotH=height-pad.t-pad.b;
+    const spread=Math.max(1,max-min),lo=min-spread*.12,hi=max+spread*.12;
+    ctx.strokeStyle='#28384f';ctx.lineWidth=1;
+    for(let i=0;i<3;i++){const y=pad.t+i*plotH/2;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(width-pad.r,y);ctx.stroke();}
+    const pts=vals.map((v,i)=>({x:items.length===1?width/2:pad.l+i*plotW/(items.length-1),y:pad.t+(hi-v)/(hi-lo)*plotH}));
+    ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.strokeStyle='#73d6b2';ctx.lineWidth=2.5;ctx.stroke();
+    pts.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,3.5,0,Math.PI*2);ctx.fillStyle='#73d6b2';ctx.fill();});
+    ctx.fillStyle='#9eafc4';ctx.font='11px system-ui';ctx.textAlign='left';ctx.fillText(money(max),pad.l,12);ctx.textAlign='right';ctx.fillText(money(min),width-pad.r,height-4);
+  }
+  function renderFundHistory(items){
+    if(items.length<2){$('fundHistory').innerHTML='<p class="tiny">Save another statement on a later date to see each fund\'s change over time.</p>';return;}
+    const first=items[0],last=items[items.length-1],map=new Map((first.schemes||[]).map(x=>[x.scheme.toLowerCase(),x]));
+    const rows=(last.schemes||[]).map(x=>{
+      const prev=map.get(x.scheme.toLowerCase()),change=prev?Number(x.current)-Number(prev.current):null;
+      const pct=prev&&Number(prev.current)!==0?change/Number(prev.current)*100:null;
+      return {name:x.scheme,change,pct,added:!prev};
+    }).sort((a,b)=>(b.change??0)-(a.change??0));
+    $('fundHistory').innerHTML=rows.map(x=>`<div class="row"><div><strong>${escapeHtml(x.name)}</strong><small>${x.added?'Not present in first snapshot':'Change since first snapshot'}</small></div><div class="right"><strong class="${(x.change??0)>=0?'positive':'negative'}">${x.change===null?'—':(x.change>=0?'+':'')+money(x.change)}</strong><small>${x.pct===null?'':(x.pct>=0?'+':'')+x.pct.toFixed(2)+'%'}</small></div></div>`).join('');
+  }
+  function renderMonthlySummary(items){
+    if(items.length<2){$('monthlySummary').textContent='Save a later snapshot to see portfolio and invested-value changes.';return;}
+    const a=items[items.length-2],b=items[items.length-1],days=Math.round((new Date(b.captured_at)-new Date(a.captured_at))/86400000);
+    const val=Number(b.current_value)-Number(a.current_value),invested=Number(b.invested_value)-Number(a.invested_value);
+    $('monthlySummary').innerHTML=`Since previous snapshot (${days} day${days===1?'':'s'}): portfolio value <b class="${val>=0?'positive':'negative'}">${val>=0?'+':''}${money(val)}</b>; net invested-value change <b>${invested>=0?'+':''}${money(invested)}</b>. This is not a verified SIP contribution total.`;
+  }
+  function samePortfolio(a,b){
+    if(Math.abs(Number(a.invested_value)-Number(b.invested_value))>0.01||Math.abs(Number(a.current_value)-Number(b.current_value))>0.01||Math.abs(Number(a.gain_loss)-Number(b.gain_loss))>0.01)return false;
+    const sig=x=>(x||[]).map(v=>[String(v.scheme||'').toLowerCase(),Number(v.invested||0).toFixed(2),Number(v.current||0).toFixed(2)]).sort((x,y)=>x[0].localeCompare(y[0]));
+    return JSON.stringify(sig(a.schemes))===JSON.stringify(sig(b.schemes));
+  }
+  function sameLocalDay(a,b){
+    const x=new Date(a),y=new Date(b);
+    return x.getFullYear()===y.getFullYear()&&x.getMonth()===y.getMonth()&&x.getDate()===y.getDate();
+  }
+
+  async function loadHistory(){
+    const {data,error}=await client.from('portfolio_snapshots').select('id,captured_at,invested_value,current_value,gain_loss,schemes,source_file_name').order('captured_at',{ascending:true});
+    if(error) throw error;
+    snapshots=data||[];
+    if(!snapshots.length){$('history').innerHTML='<p class="tiny">No snapshots saved yet. Upload your first statement above.</p>'; $('schemes').innerHTML='<p class="tiny">No scheme data yet.</p>'; drawGrowthChart([]);renderMonthlySummary([]);renderFundHistory([]);return;}
+    renderLatest(snapshots[snapshots.length-1]);
+    $('history').innerHTML=snapshots.slice().reverse().map((s,i)=>{
+      const p=s.invested_value?(s.gain_loss/s.invested_value*100):0;
+      return `<div class="history-item"><div style="display:flex;justify-content:space-between;gap:12px"><div><strong>${new Date(s.captured_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</strong><div class="tiny">${new Date(s.captured_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})} · ${escapeHtml(s.source_file_name||'Statement')}</div></div><div class="right"><strong>${money(s.current_value)}</strong><div class="tiny ${p>=0?'positive':'negative'}">${p.toFixed(2)}% return</div></div></div></div>`;
+    }).join('');
+    if(snapshots.length>1){
+      const first=snapshots[0],last=snapshots[snapshots.length-1],delta=last.current_value-first.current_value;
+      $('compare').innerHTML=`<div class="metric" style="margin-top:12px"><small>Change since first saved snapshot</small><strong class="${delta>=0?'positive':'negative'}">${delta>=0?'+':''}${money(delta)}</strong><small>${snapshots.length} snapshots · ${new Date(first.captured_at).toLocaleDateString('en-IN')} to ${new Date(last.captured_at).toLocaleDateString('en-IN')}</small></div>`;
+      $('compare').classList.remove('hidden');
+    } else $('compare').classList.add('hidden');
+    drawGrowthChart(snapshots);
+    renderMonthlySummary(snapshots);
+    renderFundHistory(snapshots);
+  }
+
+  async function activate(user){
+    currentUser=user; $('authCard').classList.add('hidden'); $('app').classList.remove('hidden'); $('userTag').textContent=user.email||'Signed in';
+    await loadHistory();
+  }
+  async function authAction(kind){
+    if(!client){show($('authMsg'),'Authentication library is unavailable. Check your internet connection and reload this page.','error');return;}
+    const email=$('email').value.trim(),password=$('password').value;
+    if(!email||!password){show($('authMsg'),'Enter your email and password.','error');return;}
+    const signInButton=$('signIn'),signUpButton=$('signUp');
+    signInButton.disabled=true; signUpButton.disabled=true;
+    show($('authMsg'),kind==='signup'?'Creating your account…':'Signing in…');
+    try {
+      const {data,error}=kind==='signup'
+        ? await client.auth.signUp({email,password})
+        : await client.auth.signInWithPassword({email,password});
+      if(error){show($('authMsg'),error.message,'error');return;}
+      if(kind==='signup'&&!data.session){show($('authMsg'),'Account created. Check your email for the confirmation link, then sign in here.','ok');return;}
+      if(data.user) await activate(data.user);
+      else show($('authMsg'),'No user session was returned. Please try again.','error');
+    } finally {
+      signInButton.disabled=false; signUpButton.disabled=false;
+    }
+  }
+  $('signIn').onclick=()=>authAction('signin').catch(e=>show($('authMsg'),e.message||String(e),'error'));
+  $('signUp').onclick=()=>authAction('signup').catch(e=>show($('authMsg'),e.message||String(e),'error'));
+  $('signOut').onclick=async()=>{await client.auth.signOut();currentUser=null;$('app').classList.add('hidden');$('authCard').classList.remove('hidden');};
+  $('statement').onchange=e=>{selectedFile=e.target.files?.[0];$('analyzeSave').disabled=!selectedFile;hide($('uploadMsg'));$('preview').classList.add('hidden');};
+  $('analyzeSave').onclick=async()=>{
+    const b=$('analyzeSave');b.disabled=true;b.textContent='Reading statement…';
+    try{
+      if (!window.XLSX) throw new Error('The spreadsheet reader did not load. Check your internet connection, reload this page, and try again.');
+      parsedSnapshot=await parseSheet(selectedFile);
+      $('preview').innerHTML=`<div class="grid" style="margin-top:12px"><div class="metric"><small>Current value</small><strong>${money(parsedSnapshot.current_value)}</strong></div><div class="metric"><small>Invested value</small><strong>${money(parsedSnapshot.invested_value)}</strong></div><div class="metric"><small>Gain / loss</small><strong>${money(parsedSnapshot.gain_loss)}</strong></div><div class="metric"><small>Schemes</small><strong>${parsedSnapshot.schemes.length}</strong></div></div>`;
+      $('preview').classList.remove('hidden');
+      const now=new Date();
+      const duplicate=snapshots.some(s=>sameLocalDay(s.captured_at,now)&&samePortfolio(s,parsedSnapshot));
+      if(duplicate){
+        show($('uploadMsg'),'Duplicate prevented: an identical portfolio snapshot is already saved for today. No second record was created.','ok');
+        return;
+      }
+      const payload={user_id:currentUser.id,captured_at:now.toISOString(),source_file_name:parsedSnapshot.source_file_name,invested_value:parsedSnapshot.invested_value,current_value:parsedSnapshot.current_value,gain_loss:parsedSnapshot.gain_loss,schemes:parsedSnapshot.schemes};
+      const {error}=await client.from('portfolio_snapshots').insert(payload);
+      if(error) throw error;
+      show($('uploadMsg'),'Snapshot saved successfully. Your history has been updated.','ok');
+      await loadHistory();
+    }catch(e){show($('uploadMsg'),e.message||String(e),'error');}
+    finally{b.disabled=!selectedFile;b.textContent='Analyze & save snapshot';}
+  };
+  $('refresh').onclick=()=>loadHistory().catch(e=>show($('uploadMsg'),e.message,'error'));
+  if(client) {
+    client.auth.getSession().then(({data,error})=>{
+      if(error) show($('authMsg'),error.message,'error');
+      if(data?.session?.user) activate(data.session.user).catch(e=>{console.error(e);$('authCard').classList.remove('hidden');$('app').classList.add('hidden');show($('authMsg'),e.message||String(e),'error');});
+    }).catch(e=>show($('authMsg'),e.message||String(e),'error'));
+    client.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_IN'&&session?.user) activate(session.user).catch(e=>show($('authMsg'),e.message||String(e),'error'));});
+  }
+})();
+</script>
+</body>
+</html>
